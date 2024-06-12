@@ -7,7 +7,7 @@ import re
 import os
 from pathlib import Path
 from spellchecker import SpellChecker
-
+import cleaning_cdiff as clcdiff
 
 # start spell checker
 spell = SpellChecker()
@@ -181,7 +181,7 @@ def clean_sup_data(value_encoded:str):
                     value_derived_d, _,units = findReading(value_encoded)
 
                 else:
-                    subvalue_derived_d = ' '
+                    subvalue_derived_d = 'U'
             # elif re.search("NO (SAMPLE|SPECIMEN)",value_spell,re.I) or \
             #        re.search("(BLOOD|AMENDED|PREVIOUS)",value_spell,re.I):
             #     value_derived_d = np.nan
@@ -201,7 +201,7 @@ def clean_sup_data(value_encoded:str):
     
     if re.search("(TAMPERING|FALSELY ELEVATED|INTERFERENCE|INCORRECT|DISREGARD)",value_encoded,re.I):
         value_derived_d = np.nan
-        subvalue_derived_d = ' '
+        subvalue_derived_d = ""
 
     
     return value_derived_d, subvalue_derived_d
@@ -246,58 +246,57 @@ def cleaning_urine_creatinine(olis_urine_table: pd.DataFrame, code_list: list) -
     non_ratio_codes = ["1754-1", "14683-7", "14957-5", "XON10382-0", "XON12400-8"]
 
     # apply the above function;
-    olis_creatinine[['value_derived_d','subvalue_derived_d']] = olis_creatinine['value'].apply(clean_sup_data)
+    olis_creatinine['value_derived_d'],olis_creatinine['subvalue_derived_d'] = zip(*olis_creatinine['value'].apply(clean_sup_data))
     olis_creatinine.value_derived_d= pd.to_numeric(olis_creatinine.value_derived_d, errors='coerce')
     
-    # Filter rows based on the condition 'observationcode in (&non_ratio_codes.)'
-    non_ratio_olis_creatinine = olis_creatinine[olis_creatinine['observationcode'].isin(non_ratio_codes)]
-    non_ratio_olis_creatinine['value_derived_d'] = np.nan
-    non_ratio_olis_creatinine['subvalue_derived_d'] = ''
-
-    # Filter rows based on observation code not in non_ratio_codes
-    olis_creatinine = olis_creatinine[olis_creatinine['observationcode'].notin(non_ratio_codes)]
-
-    # Removing rows with null values in 'value' column
-    non_ratio_olis_creatinine = non_ratio_olis_creatinine.dropna(subset=['value'])
-
-    # Converting 'value' column to numeric
-    non_ratio_olis_creatinine['value'] = pd.to_numeric(non_ratio_olis_creatinine['value'], errors='coerce')
-    
-    outdata = pd.concat([non_ratio_olis_creatinine, olis_creatinine],axis=1)
-
-    # Dropping unnecessary columns
-    outdata.drop(columns=['observationdatetime'], inplace=True)
+    outdata = olis_creatinine
 
     return outdata
 
 # %%
 if __name__ == '__main__':
 
+    # Example implementation of the call to the functionality
     # setup
     projectPath = Path(os.getcwd())
+    # projectPath = Path("\\hscpigdcapmdw05\SAS\USERS\HDSB\Projects\Olis Cleaning")
     dataFile = projectPath / ".." / "Data/olis_urine.sas7bdat"
     # read in the dataset
     dat1 = pd.read_sas(dataFile, encoding='latin1')
-
-    #%%
     dat1.columns= dat1.columns.str.lower()
-    # test couple of things first
-    t1 = pd.DataFrame()
-    t1['value_derived'],t1['subvalue_derived_d'] = zip(*dat1.value.apply(clean_sup_data))
 
-    t1 = pd.concat([t1,dat1[['value']]], axis=1)
-    # send in the data from cleaningcolumns=['value_encoded','subvalue_derived_d']
+    # %% Run the function
+    obscodelist = ['14683-7']
+    dat2 = cleaning_urine_creatinine(dat1,obscodelist)
+    dat2  = dat2.fillna(value=np.nan)
+    # %% compare the results with that of output from SAS code;
+    resultfile = projectPath / ".." / "sas_cleaned_data/urine_creatinine_clean.sas7bdat"
+    res = pd.read_sas(resultfile, encoding='latin1')
+    res.columns = res.columns.str.lower()
 
-    # %% Runn the function
-    
-    #%%
-    t2 = t1[t1.value.str.len()>7]
-    t2.value_derived = pd.to_numeric(t2.value_derived,errors='coerce')
-    t2 [t2.value_derived == -88888888.0]
+    # %%
+    def equalp(x:pd.Series, y:pd.Series):
+        if x.dtypes == y.dtypes:
+            if x.dtypes == 'object':
+                x1 = x.fillna("U")
+                y1 = y.fillna("U")
+                return x1 == y1
+            else:
+                x1 = x.fillna(-888888888.0)
+                y1= y.fillna(-88888888.0)
+                return x1 == y1
+        else :
+            return False
     
     # %%
-    t3 = t2[t2.value_derived.isna()].value.value_counts().reset_index().rename(columns={'index':'issue'}).sort_values('value', ascending=False)
-
-# %%
-clean_sup_data(val1)
+    res.value_encoded = pd.to_numeric(res.value_encoded, errors='coerce')
+    indexcols = ['ordersid','observationcode','observationdatetime','testrequestpositioninorder','observationposintestrequest']
+    sasVsours = (res[ indexcols+ ['value_encoded','value_derived_d','subvalue_derived_d']]
+            .rename(columns={"value_derived_d":"res_value", "subvalue_derived_d":"res_subvalue"})
+            .merge( dat2[ indexcols + ['value_derived_d','subvalue_derived_d']],
+                   how="inner", on=indexcols))
+    diff = sasVsours[(sasVsours.res_value -  sasVsours.value_derived_d) > 10e-6]
+    print("total missmatch in values: " + str(((diff.res_value - diff.value_derived_d ) >10e-6).sum()))
+    diff = sasVsours[(sasVsours.res_subvalue !=  sasVsours.subvalue_derived_d) ]
+    print ("total missmatch in suvalues")
 # %%
