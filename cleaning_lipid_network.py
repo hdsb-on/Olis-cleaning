@@ -1,203 +1,142 @@
-# %%
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jun 12 09:41:03 2024
 
+@author: KeremAi
+"""
+
+# %%
 import pandas as pd
-import numpy as np
 import re
 import os
 from pathlib import Path
-from spellchecker import SpellChecker
-
-# start spell checker
-spell = SpellChecker()
 
 # %%
+def derive_value(upvalue, observationcode):
 
-# Read the SAS dataset into a pandas DataFrame
-#df = pd.read_sas('C:/Projects/OLIS Cleaning/Data/olis_lipids.sas7bdat', format='sas7bdat', encoding='latin1')
-#value_value = df.groupby(['VALUE', 'OBSERVATIONCODE', 'ORDERSID', 'TESTREQUESTPOSITIONINORDER', 'OBSERVATIONPOSINTESTREQUEST']).size().reset_index(name='cn')
-
-# Rename column for clarity
-#value_value = value_value.rename(columns={'VALUE': 'value_encoded'})
-
-#dftest=df.head(5)
-
-# %%
-def clean_lipid(value_encoded:str):
-    def anydigit(s):
-        return any(char.isdigit() for char in s)
-
-    def anyalpha(s):
-        return any(char.isalpha() for char in s)
-
-    def anypunct(s):
-        return any(char in ".,;:!?-" for char in s)
-
-    value_derived_d = None
-    subvalue_derived_d = None
-     
+    value_derived = None
+    subvalue1 = None
+    
     try:
-        value_encoded =  value_encoded.upper();
-        if anydigit(value_encoded)>0 and \
-            not str.find(self, 'NOT PERFORMED')>0 \
-                and str.find(self, 'DISREGARD') >0 \
-                    and str.find(self, 'CORRECTED ON') >0 \
-        and str.find(self, 'NOT VALID') >0 \
-            and str.find(self, 'NOT AVAILABLE') >0 \
-                and	str.find(self, 'UNABLE') >0 \
-                    and	str.find(self, 'UNSUITABLE') >0 \
-        and	str.find(self, 'INVALID') >0 \
-            and	str.find(self, 'NOT BE CALCULATED') >0 \
-                and	str.find(self, 'NOT ACCURATE') >0 \
-        and	str.find(self, 'UNRELIABLE') >0 \
-            and	str.find(self, 'NOT REP\TABLE') >0 \
-                and	str.find(self, 'IS DECREASED') >0 \
-                    and	str.find(self, 'NOT BEEN SIGNED') >0 \
-        and	str.find(self, 'NOT BEEN PERF\MED') >0 \
-            and	str.find(self, 'INC\RECTLY') >0 \
-                and	str.find(self, 'CANCELLED') >0 \
-                    and	str.find(self, 'DELETE') >0 \
-        and	str.find(self, 'MODIFIED RESULT') >0 \
-            and	str.find(self, 'GUIDELINE') >0 \
-                and	str.find(self, 'N/A') >0 \
-                    and	str.find(self, 'ERROR') >0 \
-        and	str.find(self, 'REJECTION') >0 \
-            and	str.find(self, 'MISLABELLED') >0 \
-                and	str.find(self, 'DUPLICATE') >0 \
-                    and	str.find(self, 'DEPRESSED') >0 \
-        and	str.find(self, 'INC\RECT') >0 \
-            and	str.find(self, 'FRS*') >0 \
-                and	str.find(self, 'AMENDED') >0 \
-                    and	str.find(self, 'UNLABELLED') >0 \
-        and	str.find(self, 'GROSSLY LIPEMIC') >0 \
-            and	str.find(self, 'NO SAMPLE') >0 \
-                and	str.find(self, 'NOT CALCULATED') >0 \
-                    and	str.find(self, "CAN'T BE CALCULATED") >0 \
-        and	str.find(self, 'NOT \DERED') >0 \
-            and	str.find(self, 'INACCURATE') >0 \
-               and  str.find(self, 'NOT PROCESSED') >0:
-               
-                   
-	# If value has just numbers and decimals;
-        elif re.match(r'^[0-9.]+$', upvalue):
-                valuetemp1 = upvalue.replace('..', '.')
-                value_derived = float(valuetemp1)
-    
-    # If value contains \.BR\;
-        elif re.search(r'\.BR\\', upvalue):
-            valuetemp1 = upvalue.replace(".BR\\", "").strip()
-            if re.match(r'^[0-9. ]+$', valuetemp1):
-                value_derived = float(valuetemp1.replace(' ', ''))
-
-    #If it has < or > and no letter;
-        if '<>' in upvalue and all(c in '0123456789. <>' for c in upvalue):
+        # If value has just numbers and decimals
+        if re.fullmatch(r'[0-9.]+', upvalue):
+            valuetemp1 = upvalue.replace('..', '.')
+            value_derived = float(valuetemp1)
+        
+        # If value contains \.BR\
+        elif "\\.BR\\" in upvalue:
+            valuetemp1 = upvalue.replace("\\.BR\\", ' ').strip()
+            if re.fullmatch(r'[0-9. ]+', valuetemp1):
+                value_derived = float(valuetemp1.strip())
+        
+        # If it has < or > and no letter
+        elif any(op in upvalue for op in '<>') and re.fullmatch(r'[0-9. <>]+', upvalue):
             if '<' in upvalue:
-                sub_value1 = '<'
-                elif '>' in upvalue:
-                    sub_value1 = '>'
-        else:
-            sub_value1 = ''
-        valuetemp1 = upvalue.replace('<>', '')
-        value_derived = float(valuetemp1.strip())
-    
-    #Has !/H/R/L at the end;
-    if all(c in '0123456789. !HRL' for c in upvalue):
-        valuetemp1 = upvalue.translate(str.maketrans('', '', '!HRL'))
-        if not ' ' in valuetemp1.strip():
-            value_derived = float(valuetemp1.strip())
-    
-    # LESS THAN;
-    if upvalue.startswith('LESS THAN'):
-        subvalue1 = '<'
-        valuetemp1 = upvalue.replace('LESS THAN', '').replace('.BR\\', '').strip()
-        value_derived = float(valuetemp1.strip())
+                subvalue1 = '<'
+            elif '>' in upvalue:
+                subvalue1 = '>'
+            valuetemp1 = re.sub(r'[<>]', '', upvalue).strip()
+            if re.fullmatch(r'[0-9.]+', valuetemp1):
+                value_derived = float(valuetemp1)
+        
+        # Has !/H/R/L at the end
+        elif re.fullmatch(r'[0-9. !HRL]+', upvalue):
+            valuetemp1 = re.sub(r'[!HRL]', '', upvalue).strip()
+            if ' ' not in valuetemp1 and re.fullmatch(r'[0-9.]+', valuetemp1):
+                value_derived = float(valuetemp1)
+        
+        # LESS THAN
+        elif upvalue.startswith('LESS THAN'):
+            subvalue1 = '<'
+            valuetemp1 = re.sub(r'LESS THAN|\.BR\\', '', upvalue).strip()
+            if re.fullmatch(r'[0-9.]+', valuetemp1):
+                value_derived = float(valuetemp1)
+        
+        # GREATER THAN
+        elif upvalue.startswith('GREATER THAN'):
+            subvalue1 = '>'
+            valuetemp1 = re.sub(r'GREATER THAN MMOL/L\(\)|\.BR\\', '', upvalue).strip()
+            if re.fullmatch(r'[0-9.]+', valuetemp1):
+                value_derived = float(valuetemp1)
+        
+        # XML
+        elif "HTTP://WWW.SSHA.CA" in upvalue:
+            if '&GT;' in upvalue:
+                subvalue1 = ">"
+            elif '&LT;' in upvalue:
+                subvalue1 = "<"
+            
+            valuetemp1 = re.sub(r'<P1:STRUCTUREDNUMERIC XMLNS:P1="HTTP://WWW.SSHA.CA">|</P1:STRUCTUREDNUMERIC>', ' ', upvalue).strip()
+            valuetemp2 = re.sub(r'<P1:COMPARATOR>|</P1:COMPARATOR>', ' ', valuetemp1).strip()
+            valuetemp3 = re.sub(r'<P1:NUMBER1>|</P1:NUMBER1>', ' ', valuetemp2).strip()
+            valuetemp4 = re.sub(r'<P1:NUMBER2>|</P1:NUMBER2>', ' ', valuetemp3).strip()
+            valuetemp5 = re.sub(r'<P1:COMPARATOR/>|<P1:SEPARATOR/>', ' ', valuetemp4).strip()
+            valuetemp6 = re.sub(r'[=&LTGT;:]', '', valuetemp5).strip()
+            if re.fullmatch(r'[0-9.]+', valuetemp6):
+                value_derived = float(valuetemp6)
+        
+        # LIPIDS SPECIFIC
+        if value_derived is None and re.fullmatch(r'[0-9.-NEG ]+', upvalue):
+            valuetemp1 = re.sub(r' NEG', '', upvalue).strip()
+            if re.fullmatch(r'[0-9.-]+', valuetemp1):
+                value_derived = float(valuetemp1)
 
-    #GREATER THAN;
-    if upvalue.startswith('LESS THAN'):
-        subvalue1 = '<'
-        valuetemp1 = upvalue.replace('LESS THAN', '').replace('.BR\\', '').strip()
-        value_derived = float(valuetemp1.strip())
-
-#	/*<P1:STRUCTUREDNUMERIC XMLNS:P1="HTTP://WWW.SSHA.CA"><P1:COMPARATOR>&GT;=</P1:COMPARATOR><P1:NUMBER1>0.64</P1:NUMBER1></P1:STRUCTUREDNUMERIC>*/
-#		*** XML;
-
-    if "HTTP://WWW.SSHA.CA" in upvalue:
-        if '&GT;' in upvalue:
-            subvalue1 = ">"
-        elif '&LT;' in upvalue:
-            subvalue1 = "<"
-        else:
-            subvalue1 = ""
-        valuetemp1 = upvalue.replace('<P1:STRUCTUREDNUMERIC XMLNS:P1="HTTP://WWW.SSHA.CA">', '').replace('</P1:STRUCTUREDNUMERIC>', '').strip()
-        valuetemp2 = valuetemp1.replace('<P1:COMPARATOR>', '').replace('</P1:COMPARATOR>', '').strip()
-        valuetemp3 = valuetemp2.replace('<P1:NUMBER1>', '').replace('</P1:NUMBER1>', '').strip()
-        valuetemp4 = valuetemp3.replace('<P1:NUMBER2>', '').replace('</P1:NUMBER2>', '').strip()
-        valuetemp5 = valuetemp4.replace('<P1:COMPARATOR/>', '').replace('<P1:SEPARATOR/>', '').strip()
-        valuetemp6 = valuetemp5.translate(str.maketrans('', '', '=&LTGT;:'))
-        value_derived = float(valuetemp6.strip())
-
-    #/*LIPIDS SPECIFIC*/
-    elif value_derived is None and re.match(r'^[0-9.-NEG ]+$', upvalue):
-        valuetemp1 = upvalue.replace(' NEG', '')
-        value_derived = float(valuetemp1.strip())
-    
-    #/*cholesterol*/ 
-    elif (value_derived is None and
-          observationcode in ('14646-4', '14647-2', '22748-8', '25371-6', '32309-7', '39469-2', '70204-3')):
-        re = r'(CHOL|FHOL|FCHOL|CHOLESTEROL|CHOLESTEOL|HOLESTEROL RESULT|CHOLESTEROL LEVEL|CHOLESEROL RESULTS|FASTING|FASTING\)|SERUM\)|LDL|HDL|HDL RESULT)[IS.:= ]+([<>]?)(\d{1,2}\.\d{1,2})'
-        match = re.match(re)
+        # Cholesterol
+        elif value_derived is None and observationcode in ['14646-4', '14647-2', '22748-8', '25371-6', '32309-7', '39469-2', '70204-3']:
+            match = re.search(r'(CHOL|FHOL|FCHOL|CHOLESTEROL|CHOLESTEOL|HOLESTEROL RESULT|CHOLESTEROL LEVEL|CHOLESEROL RESULTS|FASTING|FASTING\)|SERUM\)|LDL|HDL|HDL RESULT)[IS.:= ]+([<>]?)(\d{1,2}\.\d{1,2})', upvalue)
             if match:
                 value_derived = float(match.group(3))
                 subvalue1 = match.group(2)
-                else:
-                    re2 = r'LDL[- ]*(CHOLESTEROL|CHOL)? ?(IS|:|=)? (LESS THAN|<) ?1'
-           if re.match(re2, upvalue):
-                        value_derived = 1
-                        subvalue1 = '<'
-           elif upvalue == 'VALUE IS GREATER THAN 4.5':
-               value_derived = 4.5
-               subvalue1 = '>'
-               
-    #	/*triglycerides*/
-    elif (value_derived is None and
-        observationcode in ('14927-8', '47210-0')):
-        re3 = r'(TRIGLYCERIDES|TRIGLYCERIDES RESULT|TRIGLYCERIDS|TRIGLYCERIDE|TRIG|TRIGLY|TRIGLYCERIDE RESULT|TRIG RESULT)[IS.:= ]+([<>]?)(\d{1,3}\.\d{1,2})'
-        match = re.match(re3, upvalue)
-        if match:
-            value_derived = float(match.group(3))
-            subvalue1 = match.group(2)
-        else:
-            re4 = r'^(\d{1,2}\.\d{2}) (,|\()'
-            if re.match(re4, upvalue):
-                value_derived = float(re.search(re4, upvalue).group(1))
-            elif 'SERUM TRIGLYCERIDES > 50.00' in upvalue or 'SERUM TRIGLYCERIDE RESULT RESULT GREATER\.BR\THAN 50.00' in upvalue:
+            
+            match = re.search(r'LDL[- ]*(CHOLESTEROL|CHOL)? ?(IS|:|=)? (LESS THAN|<) ?1', upvalue)
+            if match:
+                value_derived = 1
+                subvalue1 = '<'
+            
+            if upvalue == 'VALUE IS GREATER THAN 4.5':
+                value_derived = 4.5
+                subvalue1 = '>'
+        
+        # Triglycerides
+        elif value_derived is None and observationcode in ['14927-8', '47210-0']:
+            match = re.search(r'(TRIGLYCERIDES|TRIGLYCERIDES RESULT|TRIGLYCERIDS|TRIGLYCERIDE|TRIG|TRIGLY|TRIGLYCERIDE RESULT|TRIG RESULT)[IS.:= ]+([<>]?)(\d{1,3}\.\d{1,2})', upvalue)
+            if match:
+                value_derived = float(match.group(3))
+                subvalue1 = match.group(2)
+            
+            match = re.search(r'^(\d{1,2}\.\d{2}) (,|\()', upvalue)
+            if match:
+                value_derived = float(match.group(1))
+            
+            if 'SERUM TRIGLYCERIDES > 50.00' in upvalue or 'SERUM TRIGLYCERIDE RESULT RESULT GREATER\.BR\THAN 50.00' in upvalue:
                 value_derived = 50.00
                 subvalue1 = '>'
-   #/*apolipoprotein*/
-    elif (value_derived is None and
-        observationcode in ('1869-7', '1884-6')):
-        re5 = r'(APOB|RESULT)[IS.:= ]+([<>]?)(\d{1}\.\d{3})'
-        match = re.match(re5, upvalue)
-        if match:
-            value_derived = float(match.group(3))
-            subvalue1 = match.group(2)
+        
+        # Apolipoprotein
+        elif value_derived is None and observationcode in ['1869-7', '1884-6']:
+            match = re.search(r'(APOB|RESULT)[IS.:= ]+([<>]?)(\d{1}\.\d{3})', upvalue)
+            if match:
+                value_derived = float(match.group(3))
+                subvalue1 = match.group(2)
+        
+        # <1.70 MMOL/L NORMAL
+        # >5.64 MMOL/L VERY HIGH
+        if value_derived is None and observationcode in ['47210-0', "39469-2", "14647-2", "14646-4"]:
+            match = re.search(r'^([<>]?)(\d{1,3}\.\d{1,2})\s*MMOL\/L', upvalue)
+            if match:
+                value_derived = float(match.group(2))
+                subvalue1 = match.group(1)
+        
+        if value_derived is None and observationcode in ['1884-6']:
+            match = re.search(r'([=]?)(\d{1,3}\.\d{1,3}) G\/L', upvalue)
+            if match:
+                value_derived = float(match.group(2))
+    
+    except ValueError as e:
+        print(f"ValueError: Could not convert value to float for upvalue: {upvalue}. Error: {e}")
+    
+    return value_derived, subvalue1    
 
-#		*<1.70 MMOL/L        NORMAL
-#	*>5.64 MMOL/L        VERY HIGH;
-
-
-    elif (value_derived is None and
-        observationcode in ('1884-6')):
-        re5 = r'([=]?)(\d{1,3}\.\d{1,3}) G\/L'
-        match = re.match(re5, upvalue)
-        if match:
-            value_derived = float(match.group(2))
-            subvalue1 = match.group(1)
-    except :
-         print (" failed at: ", value_encoded)
-
-
-
-        return value_derived_d, subvalue_derived_d
 
 
 # %%
@@ -206,33 +145,75 @@ if __name__ == '__main__':
     # setup
     projectPath = Path(os.getcwd())
     #dataFile = projectPath / ".." / "Data/olis_lipids.sas7bdat"
-    dataFile = projectPath / "Data/olis_lipids.sas7bdat"
-#    df = pd.read_sas('C:/Projects/OLIS Cleaning/Data/olis_lipids.sas7bdat', format='sas7bdat', encoding='latin1')
-#   value_value = df.groupby(['VALUE', 'OBSERVATIONCODE', 'ORDERSID', 'TESTREQUESTPOSITIONINORDER', 'OBSERVATIONPOSINTESTREQUEST']).size().reset_index(name='cn')
+    dataFile = projectPath / "Data/olis_lipid2.sas7bdat"
 
-    # Rename column for clarity
-#    value_value = value_value.rename(columns={'VALUE': 'value_encoded'})
-   
+  
     # read in the dataset
     dat0 = pd.read_sas(dataFile, encoding='latin1')
     value_value = dat0.groupby(['VALUE', 'OBSERVATIONCODE', 'ORDERSID', 'TESTREQUESTPOSITIONINORDER', 'OBSERVATIONPOSINTESTREQUEST']).size().reset_index(name='cn')
-    dat1 = value_value.rename(columns={'VALUE': 'value_encoded'})
-    
-#    dat1=value_value.copy()
+    # Rename the column 'value' to 'value_encoded'
+    value_value = value_value.rename(columns={'VALUE': 'VALUE_ENCODED'})
 
-
-    #%%
-    dat1.columns= dat1.columns.str.lower()
-    # test couple of things first
-    t1 = pd.DataFrame()
-    t1['value_derived'],t1['subvalue_derived_d'] = zip(*dat1.value.apply(clean_sup_data))
-
-    t1 = pd.concat([t1,dat1[['value']]], axis=1)
-    # send in the data from cleaningcolumns=['value_encoded','subvalue_derived_d']
-    #%%
-    t2 = t1[t1.value.str.len()>7]
-    t2.value_derived = pd.to_numeric(t2.value_derived,errors='coerce')
-    t2 [t2.value_derived == -88888888.0]
     
     # %%
-    t3 = t2[t2.value_derived.isna()].value.value_counts().reset_index().rename(columns={'index':'issue'}).sort_values('value', ascending=False)
+
+    # Rename the column 'value_encoded' to 'value'
+    value_value = value_value.rename(columns={'VALUE_ENCODED': 'VALUE'})
+    
+    # Create a new column 'upvalue' with the uppercase version of 'value'
+    value_value['UPVALUE'] = value_value['VALUE'].str.upper()   
+    
+    # %%
+    # Define the list of substrings to check for exclusion
+    exclude_list = [
+        'NOT PERFORMED', 'DISREGARD', 'CORRECTED ON', 'NOT VALID', 
+        'NOT AVAILABLE', 'UNABLE', 'UNSUITABLE', 'INVALID', 
+        'NOT BE CALCULATED', 'NOT ACCURATE', 'UNRELIABLE', 
+        'NOT REPORTABLE', 'IS DECREASED', 'NOT BEEN SIGNED', 
+        'NOT BEEN PERFORMED', 'INCORRECTLY', 'CANCELLED', 'DELETE', 
+        'MODIFIED RESULT', 'GUIDELINE', 'N/A', 'ERROR', 'REJECTION', 
+        'MISLABELLED', 'DUPLICATE', 'DEPRESSED', 'INCORRECT', 'FRS*', 
+        'AMENDED', 'UNLABELLED', 'GROSSLY LIPEMIC', 'NO SAMPLE', 
+        'NOT CALCULATED', "CAN'T BE CALCULATED", 'NOT ORDERED', 
+        'INACCURATE', 'NOT PROCESSED'
+    ]
+    
+    # Function to check if any exclude substring is in upvalue
+    def check_exclusion(upvalue):
+        for exclude in exclude_list:
+            if exclude in upvalue:
+                return True
+        return False
+    
+    # Filter the DataFrame based on the conditions
+    obs_sup = value_value[
+        value_value['UPVALUE'].str.contains(r'\d') & 
+        ~value_value['UPVALUE'].apply(check_exclusion)
+    ]
+
+# %%
+# Apply the function to the DataFrame
+    import pandas as pd
+    import re
+    
+    clean = pd.DataFrame(obs_sup)
+    clean[['Value_derived', 'SubValue1']] = clean.apply(lambda row: derive_value(row['UPVALUE'], row['OBSERVATIONCODE']), axis=1, result_type='expand')
+
+# %%
+
+# Filter rows where Value_Derived is NaN
+    unassigned = clean[clean['Value_derived'].isna()]
+    
+    # Group by 'observationcode', 'upvalue', and 'Value_Derived', and count occurrences
+    unassigned_grouped = unassigned.groupby(['OBSERVATIONCODE', 'UPVALUE', 'Value_derived']).size().reset_index(name='c')
+    
+    # Sort by count (c) in descending order, and then by 'upvalue'
+    unassigned_sorted = unassigned_grouped.sort_values(by=['c', 'UPVALUE'], ascending=[False, True])
+    # %%
+    # Merge df and clean DataFrames
+    clean_lipid_df = pd.merge(
+        dat0, clean,
+        on=['ORDERSID', 'TESTREQUESTPOSITIONINORDER', 'OBSERVATIONPOSINTESTREQUEST'],
+        how='left')
+
+
