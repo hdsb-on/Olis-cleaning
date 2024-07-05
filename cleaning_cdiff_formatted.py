@@ -342,8 +342,8 @@ def clean_value_p(row):
             subvalue_derived = "I"
             value_derived = -66660000
 
-    #All others as I
-    if pd.isna('value_derived'):
+    # All others as I
+    if pd.isna(value_derived):
         subvalue_derived = "I"
         value_derived = -66660000
     
@@ -365,7 +365,10 @@ def assign_backpriority(value):
 def cleaning_cdiff(olis_cdiff: pd.DataFrame) -> pd.DataFrame:
     olis_cdiff['value_encoded'] = olis_cdiff['value']
 
-    olis_cdiff[['subvalue_derived_p', 'value_derived_p', 'backprioirity']] = olis_cdiff.apply(clean_value_p, axis=1)
+    olis_cdiff[['subvalue_derived_p', 'value_derived_p', 'backpriority']] = olis_cdiff.apply(clean_value_p, axis=1)
+
+    # olis_cdiff.loc[olis_cdiff['value_derived_p'] == pd.NA, 'subvalue_derived_p'] = 'I'
+    # olis_cdiff.loc[olis_cdiff['value_derived_p'] == pd.NA, 'value_derived_p'] = -66660000
 
     #Cleaning 2: 
     # Identify test results that are not valid, invalid_record_flag="Y"
@@ -427,7 +430,9 @@ def cleaning_cdiff(olis_cdiff: pd.DataFrame) -> pd.DataFrame:
         olis_cdiff3.loc[last_index, 'value_ordersid_p'] = group['value_derived_p'].iloc[-1]  
 
 
-    olis_cdiff4 = olis_cdiff3.drop(columns=['conclusive', 'backpriority', 'order', 'subvalue_derived_p'])
+    #NOTE: Different from sas code --> I'm not dropping these columns
+    # olis_cdiff4 = olis_cdiff3.drop(columns=['conclusive', 'backpriority', 'order', 'subvalue_derived_p'])
+    olis_cdiff4 = pd.DataFrame(olis_cdiff3)
 
     # Prioritize within hcn_encrypted+ObservationDate
 	# Recommended value same observation date
@@ -454,7 +459,9 @@ def cleaning_cdiff(olis_cdiff: pd.DataFrame) -> pd.DataFrame:
     olis_cdiff4.loc[olis_cdiff4['hcn_encrypted'].isna(), 'value_recommended_p'] = olis_cdiff4['value_ordersid_p']
 
     # Drop unnecessary columns
-    olis_cdiff4.drop(columns=['backpriority', 'subvalue_ordersid_p', 'value_ordersid_p', 'obsdate'], inplace=True)
+    # olis_cdiff4.drop(columns=['backpriority', 'subvalue_ordersid_p', 'value_ordersid_p', 'obsdate'], inplace=True)
+
+    olis_cdiff4.drop(columns=['backpriority', 'conclusive', 'order', 'subvalue_ordersid_p', 'value_ordersid_p', 'obsdate'], inplace=True)
 
     outdata = olis_cdiff4.sort_values(by=['hcn_encrypted', 'ordersid', 'testrequestpositioninorder', 'observationposintestrequest'])
 
@@ -465,11 +472,13 @@ def cleaning_cdiff(olis_cdiff: pd.DataFrame) -> pd.DataFrame:
 
 if __name__ == '__main__':
 
-    # Example implementation of the call to the functionality
-    # setup
-    projectPath = Path(os.getcwd())
+    #%%
+    # projectPath = Path(os.getcwd())
     # projectPath = Path("\\hscpigdcapmdw05\SAS\USERS\HDSB\Projects\Olis Cleaning")
-    dataFile = projectPath / ".." / "Data/olis_cdiff.sas7bdat"
+    # dataFile = projectPath / ".." / "Data/olis_cdiff.sas7bdat"
+    dataFile = "D:\\Users\\HDSB\\Projects\\Olis_cleaning\\Data\\olis_cdiff.sas7bdat"
+
+    #%%
     # read in the dataset
     dat1 = pd.read_sas(dataFile, encoding='latin1')
     dat1.columns= dat1.columns.str.lower()
@@ -480,6 +489,27 @@ if __name__ == '__main__':
     #dat2 = python cleaned code
     
     # %% compare the results with that of output from SAS code;
-    resultfile = projectPath / ".." / "sas_cleaned_data/cdiff_clean.sas7bdat"
+    # resultfile = projectPath / ".." / "sas_cleaned_data/cdiff_clean.sas7bdat"
+    resultfile = "D:\\Users\\HDSB\\Projects\\Olis_cleaning\\sas_cleaned_data\\cdiff_clean.sas7bdat"
+
     res = pd.read_sas(resultfile, encoding='latin1')
     res.columns = res.columns.str.lower()
+    #res = sas cleaned code
+    
+    # %%
+    #Code to calculate number of mismatched values between sas and python results
+    res.value_encoded = pd.to_numeric(res.value_encoded, errors='coerce')
+    indexcols = ['ordersid','observationcode','observationdatetime','testrequestpositioninorder','observationposintestrequest']
+    sasVsours = (res[ indexcols+ ['value_encoded','value_derived_d','subvalue_derived_d']]
+            .rename(columns={"value_derived_d":"res_value", "subvalue_derived_d":"res_subvalue"})
+            .merge( dat2[ indexcols + ['value_derived_p','subvalue_derived_p']],
+                    how="inner", on=indexcols))
+    diff_values = sasVsours[
+        ((sasVsours.res_value - sasVsours.value_derived_p).abs() > 10e-6) |
+        (sasVsours.res_value.isna() & sasVsours.value_derived_p.notna()) |
+        (sasVsours.res_value.notna() & sasVsours.value_derived_p.isna())
+    ]
+    print("total missmatch in values: ", diff_values.shape[0])
+    diff = sasVsours[(sasVsours.res_subvalue !=  sasVsours.subvalue_derived_p) ]
+    print ("total missmatch in suvalues" , diff.shape[0])
+# %%
