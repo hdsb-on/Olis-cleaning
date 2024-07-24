@@ -26,7 +26,7 @@ def clean_value_p(row):
         "c difficile testing pos" in value,
         "cytotoxin pcr positive" in value,
         (value.find("detected") > -1 and 
-        (value.find("not") > value.find("detected") and value.find("no") > value.find("detected"))),
+        (value.find("not") > value.find("detected") or value.find("no") > value.find("detected"))),
         (value.find("detected") > -1 and value.find("not ") == -1 and value.find("no ")==-1),
         # re.search(r'(?<!\b(NO|NOT)).*DETECTED', value),
         ("clostridium difficile toxin detected by pcr" in value and "no clostridium difficile toxin detected by pcr" not in value),
@@ -64,7 +64,8 @@ def clean_value_p(row):
         "the correct result is:\\.br\\negative" in value,
         "toxin not\\.br\\detected" in value,
         "toxin not\\e\\.br\\e\\detected" in value,
-        "final interpretation no toxigenic c difficile detected" in value
+        "final interpretation no toxigenic c difficile detected" in value,
+        "no hiv p24 antigen" in value
     ]
     
     if any(conditions_n):
@@ -139,7 +140,11 @@ def clean_value_p(row):
     conditions_i = [
         "this is a qualitative test" in value,
         "if stool sample test is positive for clostridium difficile toxin" in value,
-        "vre screening not performed patient has previously tested vre positive" in value
+        "vre screening not performed patient has previously tested vre positive" in value, 
+        "parvovirus b19 igg antibodies detected" in value,
+        "unable to quantify" in value,
+        "source: bld aerobic 2\.br\microscopic: gram-negative bacilli" in value,
+        "source: bld aerobic\.br\microscopic: gram-negative bacilli" in value
     ]
 
     if any(conditions_i):
@@ -468,7 +473,44 @@ def cleaning_cdiff(olis_cdiff: pd.DataFrame) -> pd.DataFrame:
     return outdata
 
 #%%
+def anydigit(s):
+    return any(char.isdigit() for char in s)
 
+def anyalpha(s):
+    return any(char.isalpha() for char in s)
+
+def anypunct(s):
+    return any(char in ".,;:!?-/" for char in s)
+    # return any(char.ispunct() for char in s)
+
+def correction(sentence):
+    # Split the sentence into words
+    words = sentence.split()
+
+    # Initialize a list to store the corrected words
+    corrected_words = []
+
+    # Iterate through each word
+    for word in words:
+        # Check if the word is misspelled
+        if spell.unknown([word]) and len(word)>1:
+            # If misspelled, correct it
+            corrected_word = spell.correction(word)
+
+            # Preserve punctuation
+            if corrected_word != None and word[-1] in ",.?!;:/><":
+                corrected_word += word[-1]  # Add the punctuation mark to the corrected word
+            else:
+                corrected_word = word
+            corrected_words.append(corrected_word)
+        else:
+            # If correctly spelled, keep the word as it is
+            corrected_words.append(word)
+
+    # Join the corrected words back into a sentence
+    corrected_sentence = ' '.join(corrected_words)
+
+    return corrected_sentence
 
 if __name__ == '__main__':
 
@@ -498,7 +540,6 @@ if __name__ == '__main__':
     
     # %%
     #Code to calculate number of mismatched values between sas and python results
-    res.value_encoded = pd.to_numeric(res.value_encoded, errors='coerce')
     indexcols = ['ordersid','observationcode','observationdatetime','testrequestpositioninorder','observationposintestrequest']
     sasVsours = (res[ indexcols+ ['value_encoded','value_derived_d','subvalue_derived_d']]
             .rename(columns={"value_derived_d":"res_value", "subvalue_derived_d":"res_subvalue"})
