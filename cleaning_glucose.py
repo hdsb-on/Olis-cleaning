@@ -213,16 +213,10 @@ def calculate_value(row):
     else:
         return row['num_value']
 
+# %%
+def cleaning_glucose(df,extracode):
 
-
-
-#%%
-if __name__ == '__main__':
-
-    extracode = '4269-7'
-    df = pd.read_sas("S:\\HDSB\\Projects\\Olis_cleaning\\indata\\olis_glucose_top5000.sas7bdat", encoding="latin1")
-    data=df
-   
+    data=df 
     df['upvalue'] = df['VALUE'].str.upper()
     df['value_encoded'] = df['VALUE']
 
@@ -334,4 +328,14 @@ if __name__ == '__main__':
         ['Value_recommended_d', 'SubValue_recommended_d']
     ] = [np.nan, '']
 
-    # Note: Final output data is in the dataframe "glucose"
+    return glucose
+
+
+#%%
+if __name__ == '__main__':
+
+    extracode = '4269-7'
+    df = pd.read_sas("S:\\HDSB\\Projects\\Olis_cleaning\\indata\\olis_glucose_top5000.sas7bdat", encoding="latin1")
+    output= cleaning_glucose(df,extracode)
+
+
