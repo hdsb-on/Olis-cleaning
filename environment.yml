@@ -1,0 +1,10 @@
+# conda env create -f environment.yml
+name: olis-cleaning
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12.4
+  - pandas=2.2.2
+  - numpy=1.26.4
+  - pyspellchecker=0.8.0
