@@ -1,13 +1,17 @@
-FROM conda/miniconda3
+FROM continuumio/miniconda3
 WORKDIR /usr/src/Olis_cleaningApp
 COPY ./ ./
 
-SHELL ["/bin/sh", "-c"]
+SHELL ["/bin/bash","-l", "-c"]
 
+# initialize env from config file
 RUN conda env create -n olis_cleaning -f environment.yml
 
-# check for conda info and python info
-RUN conda activate olis-cleaning && conda info && python --version
+# generate config files for bash
+RUN conda init bash
 
-# test to see if all the libraries are available
-RUN conda activate olis-cleaning && pythin test.py && echo "all libraries available"
+# automatically activate the environment
+RUN echo "conda activate olis_cleaning" >> ~/.bashrc
+
+# set entrypoint to bash
+ENTRYPOINT ["bash", "-l", "-c"]
